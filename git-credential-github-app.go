@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -132,12 +133,17 @@ func GithubAppGetInstallationAccessToken(app *githubApp, token string, client *h
 }
 
 func PrintUsage() {
+	fmt.Fprintln(os.Stderr, "Git Credential Helper for Github Apps")
 	fmt.Fprintln(os.Stderr, "Usage:")
 	fmt.Fprintln(os.Stderr, os.Args[0], "-h|--help")
 	fmt.Fprintln(os.Stderr, os.Args[0], "<-username USERNAME> <-clientId ID> <-privateKey PATH_TO_PRIVATE_KEY> <-installationId INSTALLATION_ID | -organisation ORGANISATION | -slug OWNER/REPO> [-url GITHUB_API_URL] <get|store|erase>", os.Args[0])
 	flag.PrintDefaults()
 }
 
+func Fatal(msg string) {
+	fmt.Println("quit=1")
+	log.Fatal(msg)
+}
 func main() {
 	var app githubApp
 	flag.StringVar(&app.clientId, "clientId", "", "GitHub App ClientId (preferred) or AppId, mandatory")
@@ -156,11 +162,11 @@ func main() {
 	}
 
 	if len(app.clientId) == 0 {
-		panic("ClientId is mandatory")
+		log.Fatal("ClientId is mandatory")
 	}
 
 	if len(*privateKeyFile) == 0 {
-		panic("Path to Private Key file is mandatory")
+		log.Fatal("Path to Private Key file is mandatory")
 	}
 
 	if app.installationId == 0 {
@@ -170,12 +176,12 @@ func main() {
 		} else if len(app.slug) > 0 {
 			app.slug = strings.ToLower(app.slug)
 		} else {
-			panic("When InstallationId is not supplied, Organisation or Slug is required")
+			log.Fatal("When InstallationId is not supplied, Organisation or Slug is required")
 		}
 	}
 
 	if len(*usernamePtr) == 0 {
-		panic("Username is mandatory")
+		log.Fatal("Username is mandatory")
 	}
 
 	switch operation := flag.Arg(0); operation {
@@ -189,41 +195,37 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Get operation - we need to respond to the calller appropriately
 	var err error
 	app.privateKey, err = PrivateKeyFromPath(*privateKeyFile)
 	if err != nil {
-		fmt.Println("quit=1")
-		panic("Private Key not parseable")
+		Fatal("Private Key not parseable")
 	}
 
 	token, err := GithubAppJwt(&app, time.Now())
 	if err != nil {
-		fmt.Println("quit=1")
-		panic("Could not generate JWT token")
+		Fatal("Could not generate JWT token")
 	}
 
 	if app.installationId == 0 {
 		if len(app.organisation) > 0 {
 			app.installationId, err = GithubAppOrgGetInstallation(&app, token, http.DefaultClient)
 			if err != nil {
-				fmt.Println("quit=1")
-				panic("Could not get installation ID from Organisation")
+				Fatal("Could not get installation ID from Organisation")
 			}
 		} else if len(app.slug) > 0 {
 			app.installationId, err = GithubAppSlugGetInstallation(&app, token, http.DefaultClient)
 			if err != nil {
-				fmt.Println("quit=1")
-				panic("Could not get installation ID from Slug")
+				Fatal("Could not get installation ID from Slug")
 			}
 		} else {
-			panic("Neither Organisation nor Slug available")
+			Fatal("Neither Organisation nor Slug available")
 		}
 	}
 
 	accessTokenPtr, err := GithubAppGetInstallationAccessToken(&app, token, http.DefaultClient)
 	if err != nil {
-		fmt.Println("quit=1")
-		panic("Could not get Access Token for Installation")
+		Fatal("Could not get Access Token for Installation")
 	}
 
 	fmt.Println("username=", *usernamePtr)
