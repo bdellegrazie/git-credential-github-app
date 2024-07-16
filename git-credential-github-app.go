@@ -1,158 +1,98 @@
 package main
 
 import (
-	"crypto/rsa"
-	"encoding/json"
+	"context"
 	"flag"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"strings"
-	"time"
 
-	"github.com/golang-jwt/jwt/v5"
+	"github.com/bradleyfalzon/ghinstallation/v2"
+	"github.com/google/go-github/v63/github"
 )
 
-type githubApp struct {
-	url            string
-	clientId       string
-	privateKey     *rsa.PrivateKey
-	installationId uint64
-	organisation   string
-	slug           string
+type CredHelperArgs struct {
+	AppId          int64
+	GithubApi      string
+	InstallationId int64
+	Organization   string
+	Owner          string
+	PrivateKeyFile string
+	Repo           string
+	User           string
+	Username       string
 }
 
-func PrivateKeyFromPath(keyFile string) (*rsa.PrivateKey, error) {
-	f, err := os.ReadFile(keyFile)
-	if err != nil {
-		return nil, err
+func GithubAppResolveInstallationId(
+	ctx context.Context,
+	client *github.Client,
+	installationId int64,
+	organization string,
+	user string,
+	owner string, repo string) (int64, error) {
+
+	if installationId != 0 {
+		return installationId, nil
 	}
-	return jwt.ParseRSAPrivateKeyFromPEM(f)
-}
-
-func GithubAppJwt(app *githubApp, issuedAt time.Time) (string, error) {
-	claims := &jwt.RegisteredClaims{
-		Issuer:    app.clientId,
-		IssuedAt:  jwt.NewNumericDate(issuedAt),
-		ExpiresAt: jwt.NewNumericDate(issuedAt.Add(time.Minute * 10)),
-	}
-	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
-	return token.SignedString(app.privateKey)
-}
-
-func GithubAppCommonHeaders(req *http.Request, token string) {
-	req.Header.Add("Content-Type", "application/json")
-	req.Header.Add("Accept", "application/vnd.github+json")
-	req.Header.Add("X-GitHub-Api-Version", "2022-11-28")
-	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
-}
-
-type GithubAppOrgGetInstallationResponseBody struct {
-	Id uint64 `json:"id"`
-}
-
-func GithubAppOrgGetInstallation(app *githubApp, token string, client *http.Client) (uint64, error) {
-	req, err := http.NewRequest("POST", fmt.Sprintf("%s/orgs/%s/installation", app.url, app.organisation), nil)
-	if err != nil {
-		return 0, err
-	}
-	GithubAppCommonHeaders(req, token)
-	resp, err := client.Do(req)
-	if err != nil {
-		return 0, err
-	}
-	defer resp.Body.Close()
-
-	var dat GithubAppOrgGetInstallationResponseBody
-	decoder := json.NewDecoder(resp.Body)
-	if err = decoder.Decode(&dat); err != nil {
-		return 0, err
-	}
-	return dat.Id, nil
-}
-
-type GithubAppSlugGetInstallationResponseBody struct {
-	Id uint64 `json:"id"`
-}
-
-func GithubAppSlugGetInstallation(app *githubApp, token string, client *http.Client) (uint64, error) {
-	req, err := http.NewRequest("POST", fmt.Sprintf("%s/repos/%s/installation", app.url, app.slug), nil)
-	if err != nil {
-		return 0, err
-	}
-	GithubAppCommonHeaders(req, token)
-	resp, err := client.Do(req)
-	if err != nil {
-		return 0, err
-	}
-	defer resp.Body.Close()
-
-	var dat GithubAppSlugGetInstallationResponseBody
-	decoder := json.NewDecoder(resp.Body)
-	if err = decoder.Decode(&dat); err != nil {
-		return 0, err
-	}
-	return dat.Id, nil
-}
-
-type GithubAppGetInstallationAccessTokenResponseBody struct {
-	Token     string `json:"token"`
-	ExpiresAt string `json:"expires_at"` // "expires_at": "2016-07-11T22:14:10Z"
-}
-
-type GithubAppInstallationAccessToken struct {
-	Token     string
-	ExpiresAt time.Time
-}
-
-func GithubAppGetInstallationAccessToken(app *githubApp, token string, client *http.Client) (*GithubAppInstallationAccessToken, error) {
-	req, err := http.NewRequest("POST", fmt.Sprintf("%s/app/installations/%d/access_tokens", app.url, app.installationId), nil)
-	if err != nil {
-		return nil, err
-	}
-	GithubAppCommonHeaders(req, token)
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	decoder := json.NewDecoder(resp.Body)
-	var dat GithubAppGetInstallationAccessTokenResponseBody
-	if err = decoder.Decode(&dat); err != nil {
-		return nil, err
+	// Lookup by Repo + Owner (narrow)
+	if len(repo) > 0 && len(owner) > 0 {
+		appInstall, _, err := client.Apps.FindRepositoryInstallation(ctx, strings.ToLower(owner), strings.ToLower(repo))
+		if err != nil {
+			return 0, err
+		} else {
+			return appInstall.GetID(), nil
+		}
 	}
 
-	expiresAt, err := time.Parse(time.RFC3339, dat.ExpiresAt)
-	if err != nil {
-		return nil, err
+	// Lookup by Organisation
+	if len(organization) > 0 {
+		appInstall, _, err := client.Apps.FindOrganizationInstallation(ctx, strings.ToLower(organization))
+		if err != nil {
+			return 0, err
+		} else {
+			return appInstall.GetID(), nil
+		}
 	}
 
-	return &GithubAppInstallationAccessToken{Token: dat.Token, ExpiresAt: expiresAt}, nil
+	// Lookup by User
+	if len(user) > 0 {
+		appInstall, _, err := client.Apps.FindUserInstallation(ctx, strings.ToLower(user))
+		if err != nil {
+			return 0, err
+		} else {
+			return appInstall.GetID(), nil
+		}
+	}
+
+	return 0, fmt.Errorf("could not resolve Installation ID")
 }
 
 func PrintUsage() {
 	fmt.Fprintln(os.Stderr, "Git Credential Helper for Github Apps")
 	fmt.Fprintln(os.Stderr, "Usage:")
 	fmt.Fprintln(os.Stderr, os.Args[0], "-h|--help")
-	fmt.Fprintln(os.Stderr, os.Args[0], "<-username USERNAME> <-clientId ID> <-privateKey PATH_TO_PRIVATE_KEY> <-installationId INSTALLATION_ID | -organisation ORGANISATION | -slug OWNER/REPO> [-url GITHUB_API_URL] <get|store|erase>", os.Args[0])
+	fmt.Fprintln(os.Stderr, os.Args[0], "<-username USERNAME> <-appId ID> <-privateKeyFile PATH_TO_PRIVATE_KEY> [-installationID INSTALLATION_ID] [-organization ORGANIZATION] [-user USER] [<-owner OWNER> <-repo REPOSITORY>] [-githubApi GITHUB_API_URL] <get|store|erase>", os.Args[0])
 	flag.PrintDefaults()
 }
 
-func Fatal(msg string) {
+func Fatal(v ...any) {
 	fmt.Println("quit=1")
-	log.Fatal(msg)
+	log.Fatal(v...)
 }
+
 func main() {
-	var app githubApp
-	flag.StringVar(&app.clientId, "clientId", "", "GitHub App ClientId (preferred) or AppId, mandatory")
-	privateKeyFile := flag.String("privateKey", "", "GitHub App Private Key File, mandatory")
-	flag.Uint64Var(&app.installationId, "installationId", 0, "GitHub App Installation Id, recommended")
-	flag.StringVar(&app.organisation, "organisation", "", "GitHub App Organisation, required if InstallationId not supplied and installation is an org")
-	flag.StringVar(&app.slug, "slug", "", "GitHub App Owner/Repo slug, required if InstallationId not supplied and installation is a specific repo")
-	flag.StringVar(&app.url, "url", "https://api.github.com", "GitHub API Base URL")
-	usernamePtr := flag.String("username", "", "GitHub Username, mandatory, recommend GitHub App Name")
+	args := CredHelperArgs{}
+	flag.Int64Var(&args.AppId, "appId", 0, "GitHub App AppId, mandatory")
+	flag.StringVar(&args.GithubApi, "githubApi", "https://api.github.com", "GitHub API Base URL")
+	flag.Int64Var(&args.InstallationId, "installationId", 0, "GitHub App Installation ID")
+	flag.StringVar(&args.Organization, "organization", "", "GitHub App Organization")
+	flag.StringVar(&args.Owner, "owner", "", "GitHub App Owner/Repo Installation (owner part)")
+	flag.StringVar(&args.PrivateKeyFile, "privateKeyFile", "", "GitHub App Private Key File Path, mandatory")
+	flag.StringVar(&args.Repo, "repo", "", "GitHub App Owner/Repo Installation (repo part)")
+	flag.StringVar(&args.User, "user", "", "GitHub App User Installation")
+	flag.StringVar(&args.Username, "username", "", "Git Credential Username, mandatory, recommend GitHub App Name")
 
 	flag.Parse()
 
@@ -161,27 +101,16 @@ func main() {
 		os.Exit(1)
 	}
 
-	if len(app.clientId) == 0 {
-		log.Fatal("ClientId is mandatory")
+	if args.AppId == 0 {
+		log.Fatal("appId is mandatory")
 	}
 
-	if len(*privateKeyFile) == 0 {
+	if len(args.PrivateKeyFile) == 0 {
 		log.Fatal("Path to Private Key file is mandatory")
 	}
 
-	if app.installationId == 0 {
-		// Get InstallationId
-		if len(app.organisation) > 0 {
-			app.organisation = strings.ToLower(app.organisation)
-		} else if len(app.slug) > 0 {
-			app.slug = strings.ToLower(app.slug)
-		} else {
-			log.Fatal("When InstallationId is not supplied, Organisation or Slug is required")
-		}
-	}
-
-	if len(*usernamePtr) == 0 {
-		log.Fatal("Username is mandatory")
+	if len(args.Username) == 0 {
+		log.Fatal("username is mandatory")
 	}
 
 	switch operation := flag.Arg(0); operation {
@@ -195,40 +124,31 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Get operation - we need to respond to the calller appropriately
-	var err error
-	app.privateKey, err = PrivateKeyFromPath(*privateKeyFile)
+	tr := http.DefaultTransport
+	atr, err := ghinstallation.NewAppsTransportKeyFromFile(tr, args.AppId, args.PrivateKeyFile)
 	if err != nil {
-		Fatal("Private Key not parseable")
+		log.Fatal("Either appId or privateKeyFile are invalid", err)
 	}
 
-	token, err := GithubAppJwt(&app, time.Now())
+	ctx := context.Background()
+	client := github.NewClient(&http.Client{Transport: atr})
+	installationId, err := GithubAppResolveInstallationId(
+		ctx,
+		client,
+		args.InstallationId,
+		args.Organization,
+		args.User,
+		args.Owner, args.Repo)
 	if err != nil {
-		Fatal("Could not generate JWT token")
+		log.Fatal("failed to get installation Id", err)
 	}
 
-	if app.installationId == 0 {
-		if len(app.organisation) > 0 {
-			app.installationId, err = GithubAppOrgGetInstallation(&app, token, http.DefaultClient)
-			if err != nil {
-				Fatal("Could not get installation ID from Organisation")
-			}
-		} else if len(app.slug) > 0 {
-			app.installationId, err = GithubAppSlugGetInstallation(&app, token, http.DefaultClient)
-			if err != nil {
-				Fatal("Could not get installation ID from Slug")
-			}
-		} else {
-			Fatal("Neither Organisation nor Slug available")
-		}
-	}
-
-	accessTokenPtr, err := GithubAppGetInstallationAccessToken(&app, token, http.DefaultClient)
+	installationToken, _, err := client.Apps.CreateInstallationToken(ctx, installationId, nil)
 	if err != nil {
-		Fatal("Could not get Access Token for Installation")
+		Fatal("Could not create Github App Installation Access Token", err)
 	}
 
-	fmt.Println("username=", *usernamePtr)
-	fmt.Println("password=", accessTokenPtr.Token)
-	fmt.Println("password_expiry_utc", accessTokenPtr.ExpiresAt.Unix())
+	fmt.Println("username=", args.Username)
+	fmt.Println("password=", installationToken.GetToken())
+	fmt.Println("password_expiry_utc", installationToken.GetExpiresAt().Unix())
 }
