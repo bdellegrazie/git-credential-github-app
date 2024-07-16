@@ -15,7 +15,7 @@ Copy the binary to be on the user's `$PATH` or `$GIT_EXEC_PATH` for system insta
 
 ## Overview
 
-Setup is entirely within [Git's Configuration][5], using[Git Credential Helper Options][3].
+Setup is entirely within [Git's Configuration][5], using [Git Credential Helper Options][3].
 
 Each GitHub App Installation must be configured explicitly to ensure Git matches the correct [Credential Context][4] to the Installation,
 including the `useHttpPath = true` to ensure the credential context is narrow.

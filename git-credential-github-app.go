@@ -7,11 +7,14 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"runtime/debug"
 	"strings"
 
 	"github.com/bradleyfalzon/ghinstallation/v2"
 	"github.com/google/go-github/v63/github"
 )
+
+var version = "v0.0.1"
 
 type CredHelperArgs struct {
 	AppId          int64
@@ -69,6 +72,17 @@ func GithubAppResolveInstallationId(
 	return 0, fmt.Errorf("could not resolve Installation ID")
 }
 
+func PrintVersion(verbose bool) {
+	fmt.Fprintln(os.Stderr, "version", version)
+	if verbose {
+		buildInfo, ok := debug.ReadBuildInfo()
+		if !ok {
+			log.Fatal("Cannot get build information from binary")
+		}
+		fmt.Fprintln(os.Stderr, buildInfo.String())
+	}
+}
+
 func PrintUsage() {
 	fmt.Fprintln(os.Stderr, "Git Credential Helper for Github Apps")
 	fmt.Fprintln(os.Stderr, "Usage:")
@@ -84,6 +98,8 @@ func Fatal(v ...any) {
 
 func main() {
 	args := CredHelperArgs{}
+	versionFlagPtr := flag.Bool("version", false, "Get application version")
+	verboseFlagPtr := flag.Bool("verbose", false, "Enable verbose version output")
 	flag.Int64Var(&args.AppId, "appId", 0, "GitHub App AppId, mandatory")
 	flag.StringVar(&args.GithubApi, "githubApi", "https://api.github.com", "GitHub API Base URL")
 	flag.Int64Var(&args.InstallationId, "installationId", 0, "GitHub App Installation ID")
@@ -95,6 +111,11 @@ func main() {
 	flag.StringVar(&args.Username, "username", "", "Git Credential Username, mandatory, recommend GitHub App Name")
 
 	flag.Parse()
+
+	if *versionFlagPtr {
+		PrintVersion(*verboseFlagPtr)
+		os.Exit(0)
+	}
 
 	if flag.NArg() != 1 {
 		PrintUsage()
