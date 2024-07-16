@@ -15,6 +15,9 @@ before:
     - go mod tidy
     - go get .
 
+metadata:
+  mod_timestamp: "{{ .CommitTimestamp }}"
+
 builds:
   - env:
       - CGO_ENABLED=0
