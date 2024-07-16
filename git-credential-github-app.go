@@ -28,7 +28,7 @@ type CredHelperArgs struct {
 	Username       string
 }
 
-func GithubAppResolveInstallationId(
+func githubAppResolveInstallationId(
 	ctx context.Context,
 	client *github.Client,
 	installationId int64,
@@ -72,7 +72,7 @@ func GithubAppResolveInstallationId(
 	return 0, fmt.Errorf("could not resolve Installation ID")
 }
 
-func PrintVersion(verbose bool) {
+func printVersion(verbose bool) {
 	fmt.Fprintln(os.Stderr, "version", version)
 	if verbose {
 		buildInfo, ok := debug.ReadBuildInfo()
@@ -83,7 +83,7 @@ func PrintVersion(verbose bool) {
 	}
 }
 
-func PrintUsage() {
+func printUsage() {
 	fmt.Fprintln(os.Stderr, "Git Credential Helper for Github Apps")
 	fmt.Fprintln(os.Stderr, "Usage:")
 	fmt.Fprintln(os.Stderr, os.Args[0], "-h|--help")
@@ -91,7 +91,7 @@ func PrintUsage() {
 	flag.PrintDefaults()
 }
 
-func Fatal(v ...any) {
+func fatal(v ...any) {
 	fmt.Println("quit=1")
 	log.Fatal(v...)
 }
@@ -113,12 +113,12 @@ func main() {
 	flag.Parse()
 
 	if *versionFlagPtr {
-		PrintVersion(*verboseFlagPtr)
+		printVersion(*verboseFlagPtr)
 		os.Exit(0)
 	}
 
 	if flag.NArg() != 1 {
-		PrintUsage()
+		printUsage()
 		os.Exit(1)
 	}
 
@@ -141,7 +141,7 @@ func main() {
 		os.Exit(0)
 	case "get":
 	default:
-		PrintUsage()
+		printUsage()
 		os.Exit(1)
 	}
 
@@ -153,7 +153,7 @@ func main() {
 
 	ctx := context.Background()
 	client := github.NewClient(&http.Client{Transport: atr})
-	installationId, err := GithubAppResolveInstallationId(
+	installationId, err := githubAppResolveInstallationId(
 		ctx,
 		client,
 		args.InstallationId,
@@ -166,10 +166,10 @@ func main() {
 
 	installationToken, _, err := client.Apps.CreateInstallationToken(ctx, installationId, nil)
 	if err != nil {
-		Fatal("Could not create Github App Installation Access Token", err)
+		fatal("Could not create Github App Installation Access Token", err)
 	}
 
-	fmt.Println("username=", args.Username)
-	fmt.Println("password=", installationToken.GetToken())
-	fmt.Println("password_expiry_utc", installationToken.GetExpiresAt().Unix())
+	fmt.Printf("username=%s\n", args.Username)
+	fmt.Printf("password=%s\n", installationToken.GetToken())
+	fmt.Printf("password_expiry_utc=%d\n", installationToken.GetExpiresAt().Unix())
 }
