@@ -5,6 +5,8 @@ as an organization, user or repository Access tokens have a lifetime of 1 hour.
 
 When combined with other Credential Helpers like [git-credential-cache][6] it can remove the need for a Personal Access Token (PAT).
 
+The helper can generate the recommended Git configuration for ease of use.
+
 # Installation
 
 The GitHub App Credential Helper is a [Git Credential Custom Helper][2].
@@ -15,25 +17,62 @@ Copy the binary to be on the user's `$PATH` or `$GIT_EXEC_PATH` for system insta
 
 ## Overview
 
-Setup is entirely within [Git's Configuration][5], using [Git Credential Helper Options][3].
+Setup is entirely within [Git's Configuration][5], using [Git Credential Helper Options][3] and this helper can generate the recommended Git configuration.
 
 Each GitHub App Installation must be configured explicitly to ensure Git matches the correct [Credential Context][4] to the Installation,
 including the `useHttpPath = true` to ensure the credential context is narrow.
 
-One Installation can be designated the _default_ by using the top level domain as the credential context to allow access tokens for public repositories.
-In this context, `useHttpPath` be set to `false` or left unset (`false` is the default).
+*IMPORTANT*:
+
+* Define narrow credential contexts first, any `https://github.com` credential context should be defined last
+* The config setting `credential.<context>.helper` is multi-valued and helpers are invoked in the order specified
 
 The Github App Credential helper is typically configured with:
 
-1. [git-credential-cache][6] helper at a global or top-level domain to avoid unnecessary GitHub API calls
+1. [git-credential-cache][6] helper at a global or https://github.com context to avoid unnecessary GitHub API calls
 2. SSH -> HTTPS redirect to ensure SSH requests are redirected to HTTPS so the credential helper is used, at a top level domain or globally.
 
 This way, Git is doing most of the heavy lifting, ensuring the most narrow credential context is used and credentials are cached so the GitHub API is not abused.
 
+## Generating the Configuration
+
+The helper can generate the recommended configuration on stdout via the `generate` command using the supplied credentials.
+It should be copied to the appropriate Git configuration file. Typically `${HOME}/.gitconfig` or `/etc/gitconfig`
+
+The generated configuration has the following characterstics:
+
+* Organization / User installations are listed in the order supplied by the API. (`useHttpPath=true` is set on each)
+* Github configuration is listed last and only contains a cache
+* SSH -> HTTPS URL redirect is over the entire GitHub domain
+
+Adjust the configuration to suit your circumstances.
+
+For example in `${HOME}/.gitconfig`:
+```
+[credential "https://github.com/exampleOrg"]
+    helper = 'github-app -username myAppName -appId 123 -privateKeyFile /path/to/private.pem -installationId 123456'
+    useHttpPath = true
+
+[credential "https://github.com/exampleUser"]
+    helper = 'github-app -username myAppName -appId 123 -privateKeyFile /path/to/private.pem -installationId 123457'
+    useHttpPath = true
+
+[credential "https://github.com/exampleOrg2"]
+    helper = 'github-app -username myAppName -appId 123 -privateKeyFile /path/to/private.pem -installationId 123458'
+    useHttpPath = true
+
+[credential "https://github.com"]
+    helper = 'cache --timeout=43200'
+
+[url "https://github.com"]
+    insteadOf = ssh://git@github.com
+```
+
 ## Credential Cache Helper
 
-The [git-credential-cache][6] is _usually_ defined as an top level context helper. It is possible to have more than one cache at different credential context levels.
-GitHub App Installation access tokens last for 1 hr (3600s) so the timeout should be _at least_ 2 hr (7200s). The value shown is 12 hours.
+The [git-credential-cache][6] is _usually_ defined as an top level (empty) credential context helper. It is possible to have more than one cache at
+different credential context levels. GitHub App Installation access tokens last for 1 hr (3600s) so the timeout should be _at least_ 2 hr (7200s).
+The value shown below 12 hours.
 
 Configuration will be similar to this:
 ```
@@ -56,12 +95,7 @@ Which looks like the following in `${HOME}/.gitconfig`:
 ```
 [credential "https://github.com"]
     helper = 'cache --timeout=43200'
-    helper = 'github-app -username myAppName -appId 123 -installationId 456 -privateKeyFile /path/to/private.pem'
 ```
-*NOTE*:
-
-In Git configuration, `credential.<context>.helper` is multi-valued and helpers are invoked in the order specified.
-So when `cache` and `github-app` are used in the same context, `cache` should be first and `github-app` after.
 
 ## Redirect SSH to HTTPS
 
@@ -80,93 +114,26 @@ Which looks like the following in `${HOME}/.gitconfig`:
 
 The help reports:
 ```
-Usage of git-credential-github-app:
+Git Credential Helper for Github Apps
+Usage:
+./git-credential-github-app -h|--help
+./git-credential-github-app -v|--version [--verbose]
+./git-credential-github-app <-username USERNAME> <-appId ID> <-privateKeyFile PATH_TO_PRIVATE_KEY> <-installationID INSTALLATION_ID> <get|store|erase>
+./git-credential-github-app <-username USERNAME> <-appId ID> <-privateKeyFile PATH_TO_PRIVATE_KEY> generate
+Options:
   -appId int
     	GitHub App AppId, mandatory
-  -githubApi string
-    	GitHub API Base URL (default "https://api.github.com")
   -installationId int
     	GitHub App Installation ID
-  -organization string
-    	GitHub App Organization
-  -owner string
-    	GitHub App Owner/Repo Installation (owner part)
   -privateKeyFile string
     	GitHub App Private Key File Path, mandatory
-  -repo string
-    	GitHub App Owner/Repo Installation (repo part)
-  -user string
-    	GitHub App User Installation
   -username string
     	Git Credential Username, mandatory, recommend GitHub App Name
+  -verbose
+    	Enable verbose version output
+  -version
+    	Get application version
 ```
-
-For any specific installation, the `installationId` can be supplied directly or looked up by one of:
-* `organization`
-* `user`
-* `owner` and `repo`
-
-## `https://github.com` Credential Context
-
-Usage, as a [Git Custom Credential Helper][2] for GitHub domain credential context (i.e. `https://github.com`), is like this:
-
-```
-git config --global --add credential."https://github.com".helper 'github-app -username myAppName -appId 123 -privateKeyFile /path/to/private.pem -installationId 456'
-```
-
-Which looks like this in `${HOME}/.gitconfig`:
-
-```
-[credential "https://github.com"]
-    helper = 'github-app -username myAppName -appId 123 -privateKeyFile /path/to/private.pem -installationId 456'
-```
-
-`helper` is multi-valued config element, if the `cache` helper is used at the `https://github.com` context instead of as a global default, it should come _before_ `github-app`
-
-## Org, User, or Repo Context
-
-The credential context can be narrowed to an _organization_, a _user_ or an _owner/repo_ context.
-
-Note the `useHttpPath = true` in all situations.
-
-`installationId` can be supplied directly or as in the examples below looked up from GitHub on demand:
-
-```
-# Organization App Install
-git config --global --add credential."https://github.com/exampleOrg/".helper 'github-app -username myAppName -appId 123 -privateKeyFile /path/to/private.pem -organization exampleOrg'
-git config --global --add credential."https://github.com/exampleOrg/".useHttpPath true
-
-# User App Install
-git config --global --add credential."https://github.com/exampleUser/".helper 'github-app -username myAppName -appId 123 -privateKeyFile /path/to/private.pem -user exampleUser'
-git config --global --add credential."https://github.com/exampleUser/".useHttpPath true
-
-# Repo App Install
-git config --global --add credential."https://github.com/exampleOwner/exampleRepo.git".helper 'github-app -username myAppName -appId 123 -privateKeyFile /path/to/private.pem -owner exampleOwner -repo exampleRepo'
-git config --global --add credential."https://github.com/exampleOwner/exampleRepo.git".useHttpPath true
-```
-
-Which looks like this in `${HOME}/.gitconfig`:
-```
-[credential "https://github.com/exampleOrg/"]
-    helper = 'github-app -username myAppName -appId 123 -privateKeyFile /path/to/private.pem -organization exampleOrg'
-    useHttpPath = true
-
-[credential "https://github.com/exampleUser/"]
-    helper = 'github-app -username myAppName -appId 123 -privateKeyFile /path/to/private.pem -user exampleUser'
-    useHttpPath = true
-
-[credential "https://github.com/exampleOwner/exampleRepo.git"]
-    helper = 'github-app -username myAppName -appId 123 -privateKeyFile /path/to/private.pem -owner exampleOwner -repo exampleRepo'
-    useHttpPath = true
-```
-
-## Multiple App Installations
-
-The helper supports mutliple App installations but because Git is configured statically it requires:
-
-1. The set of supported installations (organizations, users or repositories) be known in advance
-2. One of those installations should be designated the default, it is used as credential helper for the `https://github.com` context
-3. Each installation is listed in Git configuration with explicit credential context, as shown above.
 
 <!-- References -->
 
