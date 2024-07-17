@@ -38,7 +38,7 @@ func printUsage() {
 	fmt.Fprintln(os.Stderr, "Git Credential Helper for Github Apps")
 	fmt.Fprintln(os.Stderr, "Usage:")
 	fmt.Fprintln(os.Stderr, os.Args[0], "-h|--help")
-	fmt.Fprintln(os.Stderr, os.Args[0], "-v|--version [--verbose]")
+	fmt.Fprintln(os.Stderr, os.Args[0], "-v|--version")
 	fmt.Fprintln(os.Stderr, os.Args[0], "<-username USERNAME> <-appId ID> <-privateKeyFile PATH_TO_PRIVATE_KEY> <-installationID INSTALLATION_ID> <get|store|erase>")
 	fmt.Fprintln(os.Stderr, os.Args[0], "<-username USERNAME> <-appId ID> <-privateKeyFile PATH_TO_PRIVATE_KEY> generate")
 	fmt.Fprintln(os.Stderr, "Options:")
@@ -60,7 +60,7 @@ func credentialGetOutput(w io.Writer, username string, token *github.Installatio
 
 func generateGitConfig(w io.Writer, installations []*github.Installation, args *CredHelperArgs) {
 	for _, installation := range installations {
-		fmt.Fprintf(w, "[credential \"%s\"]\n\tuseHttpPath = true\n\thelper = \"github-app -username %s -appId %d -privateKeyFile %s -installationId %d\n",
+		fmt.Fprintf(w, "[credential \"%s\"]\n\tuseHttpPath = true\n\thelper = \"github-app -username %s -appId %d -privateKeyFile %s -installationId %d\"\n",
 			installation.GetAccount().GetHTMLURL(), args.Username, args.AppId, args.PrivateKeyFile, installation.GetID())
 	}
 	fmt.Fprintln(w, "[credential \"https://github.com\"]\n\thelper = \"cache --timeout=43200\"")
@@ -115,7 +115,6 @@ func doGenerate(w io.Writer, args *CredHelperArgs) {
 func main() {
 	args := CredHelperArgs{}
 	versionFlagPtr := flag.Bool("version", false, "Get application version")
-	verboseFlagPtr := flag.Bool("verbose", false, "Enable verbose version output")
 	flag.Int64Var(&args.AppId, "appId", 0, "GitHub App AppId, mandatory")
 	flag.Int64Var(&args.InstallationId, "installationId", 0, "GitHub App Installation ID")
 	flag.StringVar(&args.PrivateKeyFile, "privateKeyFile", "", "GitHub App Private Key File Path, mandatory")
@@ -124,7 +123,7 @@ func main() {
 	flag.Parse()
 
 	if *versionFlagPtr {
-		printVersion(*verboseFlagPtr)
+		printVersion(true)
 		os.Exit(0)
 	}
 
