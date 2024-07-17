@@ -117,7 +117,7 @@ The help reports:
 Git Credential Helper for Github Apps
 Usage:
 ./git-credential-github-app -h|--help
-./git-credential-github-app -v|--version [--verbose]
+./git-credential-github-app -v|--version
 ./git-credential-github-app <-username USERNAME> <-appId ID> <-privateKeyFile PATH_TO_PRIVATE_KEY> <-installationID INSTALLATION_ID> <get|store|erase>
 ./git-credential-github-app <-username USERNAME> <-appId ID> <-privateKeyFile PATH_TO_PRIVATE_KEY> generate
 Options:
@@ -129,8 +129,6 @@ Options:
     	GitHub App Private Key File Path, mandatory
   -username string
     	Git Credential Username, mandatory, recommend GitHub App Name
-  -verbose
-    	Enable verbose version output
   -version
     	Get application version
 ```
