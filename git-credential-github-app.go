@@ -19,6 +19,7 @@ var version = "v0.0.1"
 type CredHelperArgs struct {
 	AppId          int64
 	InstallationId int64
+	Organization   string
 	PrivateKeyFile string
 	Username       string
 }
@@ -39,7 +40,7 @@ func printUsage() {
 	fmt.Fprintln(os.Stderr, "Usage:")
 	fmt.Fprintln(os.Stderr, os.Args[0], "-h|--help")
 	fmt.Fprintln(os.Stderr, os.Args[0], "-v|--version")
-	fmt.Fprintln(os.Stderr, os.Args[0], "<-username USERNAME> <-appId ID> <-privateKeyFile PATH_TO_PRIVATE_KEY> <-installationID INSTALLATION_ID> <get|store|erase>")
+	fmt.Fprintln(os.Stderr, os.Args[0], "<-username USERNAME> <-appId ID> <-privateKeyFile PATH_TO_PRIVATE_KEY> <[-installationID INSTALLATION_ID] | [-organization ORGANIZATION]> <get|store|erase>")
 	fmt.Fprintln(os.Stderr, os.Args[0], "<-username USERNAME> <-appId ID> <-privateKeyFile PATH_TO_PRIVATE_KEY> generate")
 	fmt.Fprintln(os.Stderr, "Options:")
 	flag.PrintDefaults()
@@ -82,6 +83,14 @@ func doGet(w io.Writer, args *CredHelperArgs) {
 	}
 	ctx := context.Background()
 
+	if args.InstallationId == 0 {
+		installation, _, err := client.Apps.FindOrganizationInstallation(ctx, args.Organization)
+		if err != nil {
+			fatal("Could not get InstallationId from Organization: ", err)
+		}
+		args.InstallationId = *installation.ID
+	}
+
 	installationToken, _, err := client.Apps.CreateInstallationToken(ctx, args.InstallationId, nil)
 	if err != nil {
 		fatal("Could not create Github App Installation Access Token: ", err)
@@ -117,7 +126,8 @@ func main() {
 	versionFlagPtr := flag.Bool("version", false, "Get application version")
 	flag.Int64Var(&args.AppId, "appId", 0, "GitHub App AppId, mandatory")
 	flag.Int64Var(&args.InstallationId, "installationId", 0, "GitHub App Installation ID")
-	flag.StringVar(&args.PrivateKeyFile, "privateKeyFile", "", "GitHub App Private Key File Path, mandatory")
+	flag.StringVar(&args.Organization, "organization", "", "GitHub App Organization, optional")
+	flag.StringVar(&args.PrivateKeyFile, "privateKeyFile", "", "GitHub App Private Key File Path, preferred")
 	flag.StringVar(&args.Username, "username", "", "Git Credential Username, mandatory, recommend GitHub App Name")
 
 	flag.Parse()
@@ -150,8 +160,8 @@ func main() {
 	case "store":
 		os.Exit(0)
 	case "get":
-		if args.InstallationId == 0 {
-			log.Fatal("installationId is mandatory for get operation")
+		if args.InstallationId == 0 && len(args.Organization) == 0 {
+			log.Fatal("installationId or Organization is mandatory for get operation")
 		}
 		doGet(os.Stdout, &args)
 	case "generate":
