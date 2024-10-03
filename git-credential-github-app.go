@@ -85,8 +85,10 @@ func newGithubAppClient(tr http.RoundTripper, appId int64, privateKeyFile, domai
 		return client, nil
 	}
 
-	atr.BaseURL = "https://" + domain + "/api/v3"
-	return client.WithEnterpriseURLs(atr.BaseURL, atr.BaseURL)
+	baseUrl := "https://" + domain
+	atr.BaseURL = baseUrl + "/api/v3"
+	// Enterprise URLs need a terminating slash
+	return client.WithEnterpriseURLs(baseUrl+"/api/v3/", baseUrl+"/api/uploads/")
 }
 
 func doGet(w io.Writer, args *CredHelperArgs) {
