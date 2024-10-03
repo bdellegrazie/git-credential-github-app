@@ -41,8 +41,8 @@ func printUsage() {
 	fmt.Fprintln(os.Stderr, "Usage:")
 	fmt.Fprintln(os.Stderr, os.Args[0], "-h|--help")
 	fmt.Fprintln(os.Stderr, os.Args[0], "-v|--version")
-	fmt.Fprintln(os.Stderr, os.Args[0], "<-username USERNAME> <-appId ID> <-privateKeyFile PATH_TO_PRIVATE_KEY> <[-installationId INSTALLATION_ID] | [-organization ORGANIZATION]> <[-domain GHE_DOMAIN]> <get|store|erase>")
-	fmt.Fprintln(os.Stderr, os.Args[0], "<-username USERNAME> <-appId ID> <-privateKeyFile PATH_TO_PRIVATE_KEY> <[-domain GHE_DOMAIN]> generate")
+	fmt.Fprintln(os.Stderr, os.Args[0], "<-username USERNAME> <-appId ID> <-privateKeyFile PATH_TO_PRIVATE_KEY> <[-installationId INSTALLATION_ID] | [-organization ORGANIZATION]> [-domain GHE_DOMAIN] <get|store|erase>")
+	fmt.Fprintln(os.Stderr, os.Args[0], "<-username USERNAME> <-appId ID> <-privateKeyFile PATH_TO_PRIVATE_KEY> [-domain GHE_DOMAIN] generate")
 	fmt.Fprintln(os.Stderr, "Options:")
 	flag.PrintDefaults()
 }
@@ -142,7 +142,7 @@ func main() {
 	flag.Int64Var(&args.AppId, "appId", 0, "GitHub App AppId, mandatory")
 	flag.Int64Var(&args.InstallationId, "installationId", 0, "GitHub App Installation ID")
 	flag.StringVar(&args.Organization, "organization", "", "GitHub App Organization, optional")
-	flag.StringVar(&args.PrivateKeyFile, "privateKeyFile", "", "GitHub App Private Key File Path, preferred")
+	flag.StringVar(&args.PrivateKeyFile, "privateKeyFile", "", "GitHub App Private Key File Path, mandatory")
 	flag.StringVar(&args.Username, "username", "", "Git Credential Username, mandatory, recommend GitHub App Name")
 	flag.StringVar(&args.Domain, "domain", "", "GitHub Enterprise domain, optional")
 

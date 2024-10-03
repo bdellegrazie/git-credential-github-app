@@ -22,10 +22,10 @@ Setup is entirely within [Git's Configuration][5], using [Git Credential Helper 
 Each GitHub App Installation must be configured explicitly to ensure Git matches the correct [Credential Context][4] to the Installation,
 including the `useHttpPath = true` to ensure the credential context is narrow.
 
-*IMPORTANT*:
+_IMPORTANT_:
 
-* Define narrow credential contexts first, any `https://github.com` credential context should be defined last
-* The config setting `credential.<context>.helper` is multi-valued and helpers are invoked in the order specified
+- Define narrow credential contexts first, any `https://github.com` credential context should be defined last
+- The config setting `credential.<context>.helper` is multi-valued and helpers are invoked in the order specified
 
 The Github App Credential helper is typically configured with:
 
@@ -41,13 +41,14 @@ It should be copied to the appropriate Git configuration file. Typically `${HOME
 
 The generated configuration has the following characterstics:
 
-* Organization / User installations are listed in the order supplied by the API. (`useHttpPath=true` is set on each)
-* Github configuration is listed last and only contains a cache
-* SSH -> HTTPS URL redirect is over the entire GitHub domain
+- Organization / User installations are listed in the order supplied by the API. (`useHttpPath=true` is set on each)
+- Github configuration is listed last and only contains a cache
+- SSH -> HTTPS URL redirect is over the entire GitHub domain
 
 Adjust the configuration to suit your circumstances.
 
 For example in `${HOME}/.gitconfig`:
+
 ```
 [credential "https://github.com/exampleOrg"]
     helper = 'github-app -username myAppName -appId 123 -privateKeyFile /path/to/private.pem -installationId 123456'
@@ -75,23 +76,28 @@ different credential context levels. GitHub App Installation access tokens last 
 The value shown below 12 hours.
 
 Configuration will be similar to this:
+
 ```
 git config --global --add credential.helper 'cache --timeout=43200'
 ```
 
 Which looks like the following in `${HOME}/.gitconfig`:
+
 ```
 [credential]
     helper = 'cache --timeout=43200'
 ```
+
 This is sometimes in the _system_ level config instead (`/etc/gitconfig`)
 
 It is possible to define a helper just for the `https://github.com` context like this:
+
 ```
 git config --global --add credential."https://github.com".helper 'cache --timeout=43200'
 ```
 
 Which looks like the following in `${HOME}/.gitconfig`:
+
 ```
 [credential "https://github.com"]
     helper = 'cache --timeout=43200'
@@ -100,11 +106,13 @@ Which looks like the following in `${HOME}/.gitconfig`:
 ## Redirect SSH to HTTPS
 
 To ensure that all GitHub access is via HTTPS so the credential helper is invoked use:
+
 ```
 git config --global --add url."https://github.com".insteadOf "ssh://git@github.com"
 ```
 
 Which looks like the following in `${HOME}/.gitconfig`:
+
 ```
 [url "https://github.com"]
     insteadOf = "ssh://git@github.com"
@@ -113,25 +121,35 @@ Which looks like the following in `${HOME}/.gitconfig`:
 ## GitHub App Helper
 
 The help reports:
+
 ```
 Git Credential Helper for Github Apps
 Usage:
 ./git-credential-github-app -h|--help
 ./git-credential-github-app -v|--version
-./git-credential-github-app <-username USERNAME> <-appId ID> <-privateKeyFile PATH_TO_PRIVATE_KEY> <-installationID INSTALLATION_ID> <get|store|erase>
-./git-credential-github-app <-username USERNAME> <-appId ID> <-privateKeyFile PATH_TO_PRIVATE_KEY> generate
+./git-credential-github-app <-username USERNAME> <-appId ID> <-privateKeyFile PATH_TO_PRIVATE_KEY> <[-installationId INSTALLATION_ID] | [-organization ORGANIZATION]> [-domain GHE_DOMAIN] <get|store|erase>
+./git-credential-github-app <-username USERNAME> <-appId ID> <-privateKeyFile PATH_TO_PRIVATE_KEY> [-domain GHE_DOMAIN] generate
 Options:
   -appId int
     	GitHub App AppId, mandatory
+  -domain string
+    	GitHub Enterprise domain, optional
   -installationId int
     	GitHub App Installation ID
+  -organization string
+    	GitHub App Organization, optional
   -privateKeyFile string
-    	GitHub App Private Key File Path, mandatory
+    	GitHub App Private Key File Path, preferred
   -username string
     	Git Credential Username, mandatory, recommend GitHub App Name
   -version
     	Get application version
 ```
+
+# Contributors
+
+@bdellegrazie (author)
+@nrwiersma
 
 <!-- References -->
 
