@@ -22,6 +22,7 @@ type CredHelperArgs struct {
 	Organization   string
 	PrivateKeyFile string
 	Username       string
+	Domain         string
 }
 
 func printVersion(verbose bool) {
@@ -40,8 +41,8 @@ func printUsage() {
 	fmt.Fprintln(os.Stderr, "Usage:")
 	fmt.Fprintln(os.Stderr, os.Args[0], "-h|--help")
 	fmt.Fprintln(os.Stderr, os.Args[0], "-v|--version")
-	fmt.Fprintln(os.Stderr, os.Args[0], "<-username USERNAME> <-appId ID> <-privateKeyFile PATH_TO_PRIVATE_KEY> <[-installationID INSTALLATION_ID] | [-organization ORGANIZATION]> <get|store|erase>")
-	fmt.Fprintln(os.Stderr, os.Args[0], "<-username USERNAME> <-appId ID> <-privateKeyFile PATH_TO_PRIVATE_KEY> generate")
+	fmt.Fprintln(os.Stderr, os.Args[0], "<-username USERNAME> <-appId ID> <-privateKeyFile PATH_TO_PRIVATE_KEY> <[-installationId INSTALLATION_ID] | [-organization ORGANIZATION]> <[-domain GHE_DOMAIN]> <get|store|erase>")
+	fmt.Fprintln(os.Stderr, os.Args[0], "<-username USERNAME> <-appId ID> <-privateKeyFile PATH_TO_PRIVATE_KEY> <[-domain GHE_DOMAIN]> generate")
 	fmt.Fprintln(os.Stderr, "Options:")
 	flag.PrintDefaults()
 }
@@ -60,24 +61,38 @@ func credentialGetOutput(w io.Writer, username string, token *github.Installatio
 }
 
 func generateGitConfig(w io.Writer, installations []*github.Installation, args *CredHelperArgs) {
+	domain := "github.com"
+	if args.Domain != "" {
+		domain = args.Domain
+	}
+
 	for _, installation := range installations {
 		fmt.Fprintf(w, "[credential \"%s\"]\n\tuseHttpPath = true\n\thelper = \"github-app -username %s -appId %d -privateKeyFile %s -installationId %d\"\n",
 			installation.GetAccount().GetHTMLURL(), args.Username, args.AppId, args.PrivateKeyFile, installation.GetID())
 	}
-	fmt.Fprintln(w, "[credential \"https://github.com\"]\n\thelper = \"cache --timeout=43200\"")
-	fmt.Fprintln(w, "[url \"https://github.com\"]\n\tinsteadOf = ssh://git@github.com")
+	fmt.Fprintf(w, "[credential \"https://%s\"]\n\thelper = \"cache --timeout=43200\"\n", domain)
+	fmt.Fprintf(w, "[url \"https://%s\"]\n\tinsteadOf = ssh://git@github.com\n", domain)
 }
 
-func newGithubAppClient(tr http.RoundTripper, appId int64, privateKeyFile string) (*github.Client, error) {
+func newGithubAppClient(tr http.RoundTripper, appId int64, privateKeyFile, domain string) (*github.Client, error) {
 	atr, err := ghinstallation.NewAppsTransportKeyFromFile(tr, appId, privateKeyFile)
 	if err != nil {
 		return nil, err
 	}
-	return github.NewClient(&http.Client{Transport: atr}), nil
+
+	client := github.NewClient(&http.Client{Transport: atr})
+	if domain == "" {
+		return client, nil
+	}
+
+	baseUrl := "https://" + domain
+	atr.BaseURL = baseUrl + "/api/v3"
+	// Enterprise URLs need a terminating slash
+	return client.WithEnterpriseURLs(baseUrl+"/api/v3/", baseUrl+"/api/uploads/")
 }
 
 func doGet(w io.Writer, args *CredHelperArgs) {
-	client, err := newGithubAppClient(http.DefaultTransport, args.AppId, args.PrivateKeyFile)
+	client, err := newGithubAppClient(http.DefaultTransport, args.AppId, args.PrivateKeyFile, args.Domain)
 	if err != nil {
 		log.Fatal("Error creating client: ", err)
 	}
@@ -99,7 +114,7 @@ func doGet(w io.Writer, args *CredHelperArgs) {
 }
 
 func doGenerate(w io.Writer, args *CredHelperArgs) {
-	client, err := newGithubAppClient(http.DefaultTransport, args.AppId, args.PrivateKeyFile)
+	client, err := newGithubAppClient(http.DefaultTransport, args.AppId, args.PrivateKeyFile, args.Domain)
 	if err != nil {
 		log.Fatal("Error creating client: ", err)
 	}
@@ -129,6 +144,7 @@ func main() {
 	flag.StringVar(&args.Organization, "organization", "", "GitHub App Organization, optional")
 	flag.StringVar(&args.PrivateKeyFile, "privateKeyFile", "", "GitHub App Private Key File Path, preferred")
 	flag.StringVar(&args.Username, "username", "", "Git Credential Username, mandatory, recommend GitHub App Name")
+	flag.StringVar(&args.Domain, "domain", "", "GitHub Enterprise domain, optional")
 
 	flag.Parse()
 
