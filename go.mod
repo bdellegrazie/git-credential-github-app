@@ -1,11 +1,12 @@
 module github.com/bdellegrazie/git-credential-github-app
 
-go 1.22.4
-toolchain go1.24.1
+go 1.24
+
+toolchain go1.24.3
 
 require (
 	github.com/bradleyfalzon/ghinstallation/v2 v2.15.0
-	github.com/google/go-github/v65 v65.0.0
+	github.com/google/go-github/v72 v72.0.0
 )
 
 require (

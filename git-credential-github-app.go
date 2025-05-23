@@ -11,7 +11,7 @@ import (
 	"runtime/debug"
 
 	"github.com/bradleyfalzon/ghinstallation/v2"
-	"github.com/google/go-github/v65/github"
+	"github.com/google/go-github/v72/github"
 )
 
 var version = "v0.0.1"
