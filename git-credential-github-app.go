@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"runtime/debug"
 
 	"github.com/bradleyfalzon/ghinstallation/v2"
@@ -168,6 +169,12 @@ func main() {
 
 	if len(args.Username) == 0 {
 		log.Fatal("username is mandatory")
+	}
+
+	// Resolve private key file path or generated configurations may not work correctly
+	var err error
+	if args.PrivateKeyFile, err = filepath.Abs(args.PrivateKeyFile); err != nil {
+		log.Fatal("Path to Private Key could not be made absolute with error: ", err)
 	}
 
 	switch operation := flag.Arg(0); operation {
