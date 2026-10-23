@@ -1,6 +1,6 @@
 module github.com/bdellegrazie/git-credential-github-app
 
-go 1.25.5
+go 1.27.3
 
 require (
 	github.com/bradleyfalzon/ghinstallation/v2 v2.19.0
